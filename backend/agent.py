@@ -1,17 +1,33 @@
 import os
 import sqlite3
 import pandas as pd
-import google.generativeai as genai
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure Gemini
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+# Configure Ollama
+OLLAMA_API_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "qwen2.5-coder:7b"
 
-model = genai.GenerativeModel('gemini-2.5-flash')
+def query_ollama(prompt: str) -> str:
+    """Helper function to run inference against local Ollama instance."""
+    try:
+        response = requests.post(
+            OLLAMA_API_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=120 # Add a timeout in case the server hangs
+        )
+        response.raise_for_status()
+        return response.json().get("response", "")
+    except requests.exceptions.ConnectionError:
+        raise Exception("Failed to connect to Ollama. Is the server running locally at http://localhost:11434?")
+    except Exception as e:
+        raise Exception(f"Ollama API error: {str(e)}")
 
 DB_PATH = "sales.db"
 
@@ -58,8 +74,8 @@ def process_user_query(message: str) -> dict:
     """
     
     try:
-        sql_response = model.generate_content(prompt_sql)
-        sql = sql_response.text.strip().removeprefix("```sql").removesuffix("```").strip()
+        sql = query_ollama(prompt_sql)
+        sql = sql.strip().removeprefix("```sql").removesuffix("```").strip()
     except Exception as e:
         return {"error": f"Failed to generate SQL: {str(e)}", "charts": [], "insights": "", "sql": ""}
 
@@ -109,8 +125,8 @@ def process_user_query(message: str) -> dict:
     """
     
     try:
-        viz_response = model.generate_content(prompt_viz_insights)
-        json_str = viz_response.text.strip().removeprefix("```json").removesuffix("```").strip()
+        json_str = query_ollama(prompt_viz_insights)
+        json_str = json_str.strip().removeprefix("```json").removesuffix("```").strip()
         import json
         result = json.loads(json_str)
         return {
