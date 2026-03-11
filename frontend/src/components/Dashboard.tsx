@@ -26,7 +26,7 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
     );
   }
 
-  const { charts, sql, insights } = data;
+  const { charts, sql, insights } = data || {};
 
   const handleExportPdf = async () => {
     if (!dashboardRef.current) return;
