@@ -5,6 +5,8 @@ import { Info, Code } from "lucide-react";
 import { useState, useRef } from "react";
 import { toPng } from "html-to-image";
 import { Copy, Download, Check } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+
 
 // Plotly requires browser environment
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
@@ -158,7 +160,9 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
            </button>
            <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 uppercase tracking-wider">Executive Summary</h3>
            <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed prose dark:prose-invert max-w-none pb-8">
-             {insights}
+
+             <ReactMarkdown>{insights}</ReactMarkdown>
+
            </div>
             </>
           )}
