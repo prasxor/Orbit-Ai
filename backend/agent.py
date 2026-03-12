@@ -106,7 +106,7 @@ Return the result strictly in this JSON format. Do not return any additional exp
 {{
   "sql_query": "<valid SQL query>",
   "chart_type": "<line_chart | bar_chart | pie_chart | scatter_plot>",
-  "business_insights": "<short business insight based on expected result>"
+  "business_insights": "<long business insight based on expected result and refering Statistical values using heading and bullets points>"
 }}
 
 User Request: {message}"""
