@@ -6,28 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure Ollama
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5-coder:7b"
-
-def query_ollama(prompt: str) -> str:
-    """Helper function to run inference against local Ollama instance."""
-    try:
-        response = requests.post(
-            OLLAMA_API_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False
-            },
-            timeout=120 # Add a timeout in case the server hangs
-        )
-        response.raise_for_status()
-        return response.json().get("response", "")
-    except requests.exceptions.ConnectionError:
-        raise Exception("Failed to connect to Ollama. Is the server running locally at http://localhost:11434?")
-    except Exception as e:
-        raise Exception(f"Ollama API error: {str(e)}")
+# Import Gemini Service
+from services.gemini_service import query_gemini
 
 DB_PATH = "sales.db"
 
@@ -99,35 +79,22 @@ def process_user_query(message: str) -> dict:
     3. Generate Plotly config contextually.
     """
     
-    prompt = f"""You are a business intelligence data analyst.
+    schema = get_schema()
+    
+    base_prompt = f"""You are an expert SQL analyst and business intelligence data analyst.
 
-Your job is to convert a user's natural language request into a SQL query and recommend the best chart type.
+Your job is to convert a user's natural language request into a SQL query, recommend the best chart type, and provide business insights.
 
-Database table: sales
-
-Columns:
-- order_id (integer)
-- order_date (date)
-- product_id (integer)
-- product_category (text)
-- price (float)
-- discount_percent (integer)
-- quantity_sold (integer)
-- customer_region (text)
-- payment_method (text)
-- rating (float)
-- review_count (integer)
-- discounted_price (float)
-- total_revenue (float)
+Database schema:
+{schema}
 
 Rules:
-1. Use only the columns listed above.
-2. Do not invent tables or columns.
-3. Use valid SQLite SQL syntax.
-4. If aggregation is used, ensure GROUP BY is correct.
-5. Do not use LIMIT unless explicitly asked.
-6. Always return SQL that can generate data for visualization.
-7. Prefer aggregated results for charts.
+1. Use ONLY the columns listed in the schema. Do not invent tables or columns.
+2. Use valid SQLite SQL syntax.
+3. If aggregation is used, ensure GROUP BY is correct.
+4. Do not use LIMIT unless explicitly asked.
+5. Always return SQL that can generate data for visualization.
+6. Prefer aggregated results for charts.
 
 Chart Selection Rules:
 - Use "line_chart" for time trends.
@@ -135,35 +102,59 @@ Chart Selection Rules:
 - Use "pie_chart" for proportions.
 - Use "scatter_plot" for correlations.
 
-Return the result strictly in this JSON format:
+Return the result strictly in this JSON format. Do not return any additional explanations or markdown text outside of this JSON.
 {{
   "sql_query": "<valid SQL query>",
   "chart_type": "<line_chart | bar_chart | pie_chart | scatter_plot>",
-  "explanation": "<short business insight based on expected result>"
+  "business_insights": "<short business insight based on expected result>"
 }}
 
 User Request: {message}"""
     
-    try:
-        json_str = query_ollama(prompt)
-        json_str = json_str.strip()
-        # Clean up possible markdown code blocks around json
-        if json_str.startswith("```"):
-            lines = json_str.split("\n")
-            json_str = "\n".join(lines[1:-1])  # removes ```json ... ```
-            
-        llm_resp = json.loads(json_str)
-        sql = llm_resp.get("sql_query", "")
-        chart_type = llm_resp.get("chart_type", "bar_chart")
-        insights = llm_resp.get("explanation", "")
-    except Exception as e:
-        return {"error": f"Failed to generate SQL and Plan from LLM response: {str(e)}", "charts": [], "insights": "", "sql": ""}
+    max_retries = 2
+    attempts = 0
+    last_error_msg = ""
+    current_prompt = base_prompt
+    
+    sql = ""
+    chart_type = "bar_chart"
+    insights = ""
 
-    # 2. Run SQL
-    try:
-        df = _run_query(sql)
-    except Exception as e:
-        return {"error": f"SQL Error: {str(e)}", "charts": [], "insights": insights, "sql": sql}
+    while attempts <= max_retries:
+        if attempts > 0:
+            current_prompt = base_prompt + f"\n\nWait, your previous SQL query failed to run on SQLite.\nERROR: {last_error_msg}\n\nPlease correct the SQL query to fix this error and strictly return the JSON again."
+
+        try:
+            json_str = query_gemini(current_prompt)
+            json_str = json_str.strip()
+            # Clean up possible markdown code blocks around json
+            if json_str.startswith("```"):
+                lines = json_str.split("\n")
+                if lines[-1].strip() == "```":
+                    json_str = "\n".join(lines[1:-1])  # removes ```json ... ```
+                else:
+                    json_str = "\n".join(lines[1:])
+                
+            llm_resp = json.loads(json_str)
+            sql = llm_resp.get("sql_query", "")
+            chart_type = llm_resp.get("chart_type", "bar_chart")
+            insights = llm_resp.get("business_insights", llm_resp.get("explanation", ""))
+        except Exception as e:
+            if attempts == max_retries:
+                return {"error": f"Failed to generate valid JSON from LLM response after {attempts} retries: {str(e)}\n\nResponse was: {json_str}", "charts": [], "insights": "", "sql": ""}
+            last_error_msg = f"Failed to parse JSON: {str(e)}"
+            attempts += 1
+            continue
+
+        # 2. Run SQL
+        try:
+            df = _run_query(sql)
+            break # Success, break out of retry loop
+        except Exception as e:
+            last_error_msg = f"SQL Execution Failed: {str(e)}\nPrevious SQL: {sql}"
+            attempts += 1
+            if attempts > max_retries:
+                return {"error": f"SQL Error after {max_retries} retries: {str(e)}", "charts": [], "insights": insights, "sql": sql}
         
     if df.empty:
         return {
