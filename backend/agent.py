@@ -104,8 +104,12 @@ Chart Selection Rules:
 
 Return the result strictly in this JSON format. Do not return any additional explanations or markdown text outside of this JSON.
 {{
-  "sql_query": "<valid SQL query>",
-  "chart_type": "<line_chart | bar_chart | pie_chart | scatter_plot>",
+  "queries": [
+    {{
+      "sql_query": "<valid SQL query>",
+      "chart_type": "<line_chart | bar_chart | pie_chart | scatter_plot>"
+    }}
+  ],
   "business_insights": "<long business insight based on expected result and refering Statistical values using heading and bullets points>"
 }}
 
@@ -116,8 +120,7 @@ User Request: {message}"""
     last_error_msg = ""
     current_prompt = base_prompt
     
-    sql = ""
-    chart_type = "bar_chart"
+    queries = []
     insights = ""
 
     while attempts <= max_retries:
@@ -136,8 +139,10 @@ User Request: {message}"""
                     json_str = "\n".join(lines[1:])
                 
             llm_resp = json.loads(json_str)
-            sql = llm_resp.get("sql_query", "")
-            chart_type = llm_resp.get("chart_type", "bar_chart")
+            queries = llm_resp.get("queries", [])
+            # Fallback for old prompt structure
+            if not queries and "sql_query" in llm_resp:
+                queries = [{"sql_query": llm_resp.get("sql_query"), "chart_type": llm_resp.get("chart_type", "bar_chart")}]
             insights = llm_resp.get("business_insights", llm_resp.get("explanation", ""))
         except Exception as e:
             if attempts == max_retries:
@@ -146,37 +151,45 @@ User Request: {message}"""
             attempts += 1
             continue
 
-        # 2. Run SQL
-        try:
-            df = _run_query(sql)
-            break # Success, break out of retry loop
-        except Exception as e:
-            last_error_msg = f"SQL Execution Failed: {str(e)}\nPrevious SQL: {sql}"
+        # 2. Run SQL and Build Charts
+        charts_data = []
+        combined_sql = ""
+        has_error = False
+        
+        for q in queries:
+            sql = q.get("sql_query", "")
+            chart_type = q.get("chart_type", "bar_chart")
+            combined_sql += sql + "\n\n"
+            try:
+                df = _run_query(sql)
+                if not df.empty:
+                    chart_config = build_chart_config(df, chart_type)
+                    if chart_config:
+                        charts_data.append(chart_config)
+            except Exception as e:
+                last_error_msg = f"SQL Execution Failed: {str(e)}\nPrevious SQL: {sql}"
+                has_error = True
+                break
+                
+        if has_error:
             attempts += 1
             if attempts > max_retries:
-                return {"error": f"SQL Error after {max_retries} retries: {str(e)}", "charts": [], "insights": insights, "sql": sql}
+                return {"error": f"SQL Error after {max_retries} retries: {last_error_msg}", "charts": [], "insights": insights, "sql": combined_sql}
+            continue
+
+        break # Success, break out of retry loop
         
-    if df.empty:
+    if not charts_data:
         return {
             "error": None,
             "charts": [],
-            "insights": insights + "\n\nHowever, I couldn't find any data matching your request in the database.",
-            "sql": sql
+            "insights": insights + "\n\nHowever, I couldn't find any data matching your request in the database or generate a valid chart.",
+            "sql": combined_sql if 'combined_sql' in locals() else ""
         }
 
-    # 3. Generate Chart Definition
-    try:
-        chart_config = build_chart_config(df, chart_type)
-        return {
-            "error": None,
-            "charts": [chart_config] if chart_config else [],
-            "insights": insights,
-            "sql": sql
-        }
-    except Exception as e:
-        return {
-            "error": f"Failed to process chart visualization: {str(e)}",
-            "charts": [],
-            "insights": insights + "\n\nData retrieved successfully, but a visualization could not be generated.",
-            "sql": sql
-        }
+    return {
+        "error": None,
+        "charts": charts_data,
+        "insights": insights,
+        "sql": combined_sql.strip()
+    }

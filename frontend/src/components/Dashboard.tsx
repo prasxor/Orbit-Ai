@@ -6,15 +6,21 @@ import { useState, useRef } from "react";
 import { toPng } from "html-to-image";
 import { Copy, Download, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useTheme } from "next-themes";
 
 
 // Plotly requires browser environment
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
 export default function Dashboard({ data, id, isLoading }: { data: any | null, id?: string, isLoading?: boolean }) {
+  const { theme, systemTheme } = useTheme();
   const [showSql, setShowSql] = useState(false);
   const [copiedChart, setCopiedChart] = useState<number | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
+  
+  const currentTheme = theme === "system" ? systemTheme : theme;
+  const isDark = currentTheme === "dark";
 
   if (!data && !isLoading) {
     return (
@@ -32,15 +38,29 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
 
   const handleExportPdf = async () => {
     if (!dashboardRef.current) return;
-    const html2pdf = (await import("html2pdf.js")).default;
-    const opt = {
-      margin: 0.5,
-      filename: `dashboard-${id || 'export'}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
-    };
-    html2pdf().set(opt).from(dashboardRef.current).save();
+    setIsExporting(true);
+    
+    try {
+      // Give React a tick to apply the `isExporting` layout changes (removes scrollbars)
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const html2pdf = (await import("html2pdf.js")).default;
+      const opt = {
+        margin: 0.5,
+        filename: `OrbitAI-Analysis-${id || 'export'}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          windowWidth: dashboardRef.current.scrollWidth,
+          scrollY: 0
+        },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
+      };
+      await html2pdf().set(opt).from(dashboardRef.current).save();
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleCopyChart = async (index: number, elementId: string) => {
@@ -61,7 +81,10 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-[#0a0a0a] overflow-y-auto p-6 space-y-6 relative" ref={dashboardRef}>
+    <div 
+      className={`flex flex-col bg-gray-50 dark:bg-[#0a0a0a] p-6 space-y-6 relative ${isExporting ? 'h-auto overflow-visible' : 'h-full overflow-y-auto'}`} 
+      ref={dashboardRef}
+    >
       <div className="flex justify-between items-center" data-html2canvas-ignore>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Generated Dashboard</h1>
@@ -103,7 +126,7 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
           charts && charts.map((chart: any, i: number) => {
             const chartId = `chart-${id || 'session'}-${i}`;
             return (
-              <div key={i} className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col w-full h-full min-h-[400px] resize-y overflow-auto relative group">
+              <div key={i} className={`bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col w-full ${isExporting ? 'h-[500px]' : 'h-full min-h-[400px] resize-y'} overflow-auto relative group`}>
                 <button
                   onClick={() => handleCopyChart(i, chartId)}
                   data-html2canvas-ignore
@@ -120,7 +143,7 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
                       autosize: true,
                       paper_bgcolor: 'rgba(0,0,0,0)',
                       plot_bgcolor: 'rgba(0,0,0,0)',
-                      font: { color: '#888' },
+                      font: { color: isDark && !isExporting ? '#e5e7eb' : '#374151' },
                       margin: { t: 40, b: 40, l: 40, r: 40 }
                     }}
                     useResizeHandler={true}
@@ -159,10 +182,8 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
              {copiedChart === -1 ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
            </button>
            <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 uppercase tracking-wider">Executive Summary</h3>
-           <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed prose dark:prose-invert max-w-none pb-8">
-
+           <div className={`text-gray-700 dark:text-gray-300 text-sm leading-relaxed prose prose-blue prose-sm sm:prose-base dark:prose-invert max-w-none pb-8 ${isExporting ? 'text-black prose-p:text-black prose-headings:text-black' : ''}`}>
              <ReactMarkdown>{insights}</ReactMarkdown>
-
            </div>
             </>
           )}
