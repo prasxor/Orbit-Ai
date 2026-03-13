@@ -110,7 +110,7 @@ Return the result strictly in this JSON format. Do not return any additional exp
       "chart_type": "<line_chart | bar_chart | pie_chart | scatter_plot>"
     }}
   ],
-  "business_insights": "<long business insight based on expected result and refering Statistical values using heading and bullets points>"
+  "business_insights": "<medium business insight based on expected result and refering Statistical values using heading and bullets points>"
 }}
 
 User Request: {message}"""
