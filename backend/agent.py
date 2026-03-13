@@ -103,7 +103,15 @@ Chart Selection Rules:
 - Use "scatter_plot" for correlations.
 
 Return the result strictly in this JSON format. Do not return any additional explanations or markdown text outside of this JSON.
+If the user's request is a casual greeting (like "hello" or "hi") or conversational and does NOT require data analysis:
 {{
+  "intent": "chat",
+  "business_insights": "<Respond conversationally as an AI business advisor. Do not invent data.>"
+}}
+
+If the request requires data analysis or visualization:
+{{
+  "intent": "analysis",
   "queries": [
     {{
       "sql_query": "<valid SQL query>",
@@ -139,11 +147,24 @@ User Request: {message}"""
                     json_str = "\n".join(lines[1:])
                 
             llm_resp = json.loads(json_str)
+            
+            intent = llm_resp.get("intent", "analysis")
+            insights = llm_resp.get("business_insights", llm_resp.get("explanation", ""))
+            
+            if intent == "chat" or not llm_resp.get("queries", []):
+                # If it's just chat or no queries were generated, return early
+                return {
+                    "error": None,
+                    "charts": [],
+                    "insights": insights,
+                    "sql": ""
+                }
+                
             queries = llm_resp.get("queries", [])
             # Fallback for old prompt structure
             if not queries and "sql_query" in llm_resp:
                 queries = [{"sql_query": llm_resp.get("sql_query"), "chart_type": llm_resp.get("chart_type", "bar_chart")}]
-            insights = llm_resp.get("business_insights", llm_resp.get("explanation", ""))
+
         except Exception as e:
             if attempts == max_retries:
                 return {"error": f"Failed to generate valid JSON from LLM response after {attempts} retries: {str(e)}\n\nResponse was: {json_str}", "charts": [], "insights": "", "sql": ""}

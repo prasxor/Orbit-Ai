@@ -1,15 +1,17 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Moon, Sun, Clock, LayoutPanelLeft } from "lucide-react";
+import { Moon, Sun, Clock, LayoutPanelLeft, Bookmark } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function Header({ 
   onToggleHistory, 
-  onToggleCompare 
+  onToggleCompare,
+  onToggleCollections
 }: { 
   onToggleHistory: () => void,
-  onToggleCompare: () => void
+  onToggleCompare: () => void,
+  onToggleCollections: () => void
 }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -44,6 +46,15 @@ export default function Header({
         >
           <Clock className="w-4 h-4" />
           <span className="hidden sm:inline">History</span>
+        </button>
+
+        <button 
+          onClick={onToggleCollections}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900/50 transition-colors"
+          title="Saved Collections"
+        >
+          <Bookmark className="w-4 h-4" />
+          <span className="hidden sm:inline">Collections</span>
         </button>
 
         <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-1"></div>

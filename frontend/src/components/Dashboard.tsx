@@ -1,22 +1,27 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Info, Code } from "lucide-react";
+import { Copy, Download, Check, Bookmark, Info, Code } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useState, useRef } from "react";
 import { toPng } from "html-to-image";
-import { Copy, Download, Check } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { useTheme } from "next-themes";
-
+import "easymde/dist/easymde.min.css";
 
 // Plotly requires browser environment
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
+const SimpleMdeReact = dynamic(() => import("react-simplemde-editor"), { ssr: false });
 
-export default function Dashboard({ data, id, isLoading }: { data: any | null, id?: string, isLoading?: boolean }) {
+export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { data: any | null, id?: string, isLoading?: boolean, onSaveBookmark?: (data: any) => void }) {
   const { theme, systemTheme } = useTheme();
   const [showSql, setShowSql] = useState(false);
   const [copiedChart, setCopiedChart] = useState<number | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  
+  // Executive Summary editing state
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const [editedInsights, setEditedInsights] = useState<string>("");
   const dashboardRef = useRef<HTMLDivElement>(null);
   
   const currentTheme = theme === "system" ? systemTheme : theme;
@@ -35,6 +40,7 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
   }
 
   const { charts, sql, insights } = data || {};
+  const displayInsights = editedInsights || insights;
 
   const handleExportPdf = async () => {
     if (!dashboardRef.current) return;
@@ -98,6 +104,16 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">Export PDF</span>
           </button>
+          
+          {onSaveBookmark && data && (
+            <button 
+              onClick={() => onSaveBookmark(data)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800 dark:hover:bg-yellow-900/50 transition shadow-sm"
+            >
+              <Bookmark className="w-4 h-4" />
+              <span className="hidden sm:inline">Bookmark</span>
+            </button>
+          )}
           
           <button 
             onClick={() => setShowSql(!showSql)}
@@ -165,28 +181,82 @@ export default function Dashboard({ data, id, isLoading }: { data: any | null, i
                <div className="h-4 bg-blue-200 dark:bg-blue-800/50 rounded w-1/3 mb-2"></div>
                <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-full"></div>
                <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
-               <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-4/6"></div>
+                <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-4/6"></div>
              </div>
           ) : (
             <>
-               <button
-                 onClick={() => {
-                    navigator.clipboard.writeText(insights);
-                    setCopiedChart(-1); // using -1 to indicate description just to reuse state locally or we can use another state
-                    setTimeout(() => setCopiedChart(null), 2000);
-                 }}
-             data-html2canvas-ignore
-             className="absolute bottom-4 right-4 z-10 p-2 bg-white/80 dark:bg-black/60 shadow-sm backdrop-blur-sm border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-800"
-             title="Copy Description"
-           >
-             {copiedChart === -1 ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-           </button>
-           <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 uppercase tracking-wider">Executive Summary</h3>
-           <div className={`text-gray-700 dark:text-gray-300 text-sm leading-relaxed prose prose-blue prose-sm sm:prose-base dark:prose-invert max-w-none pb-8 ${isExporting ? 'text-black prose-p:text-black prose-headings:text-black' : ''}`}>
-             <ReactMarkdown>{insights}</ReactMarkdown>
-           </div>
+               <div className="absolute bottom-4 right-4 z-10 flex gap-2" data-html2canvas-ignore>
+                 <button
+                   onClick={() => {
+                     setEditedInsights(displayInsights);
+                     setIsEditingSummary(true);
+                   }}
+                   className="p-2 bg-white/80 dark:bg-black/60 shadow-sm backdrop-blur-sm border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-800"
+                   title="Edit Summary"
+                 >
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                 </button>
+                 <button
+                   onClick={() => {
+                      navigator.clipboard.writeText(displayInsights);
+                      setCopiedChart(-1); // using -1 to indicate description just to reuse state locally or we can use another state
+                      setTimeout(() => setCopiedChart(null), 2000);
+                   }}
+                   className="p-2 bg-white/80 dark:bg-black/60 shadow-sm backdrop-blur-sm border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-800"
+                   title="Copy Description"
+                 >
+                   {copiedChart === -1 ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                 </button>
+               </div>
+               
+               <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 uppercase tracking-wider">Executive Summary</h3>
+               <div className={`text-gray-700 dark:text-gray-300 text-sm leading-relaxed prose prose-blue prose-sm sm:prose-base dark:prose-invert max-w-none pb-8 ${isExporting ? 'text-black prose-p:text-black prose-headings:text-black' : ''}`}>
+                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayInsights}</ReactMarkdown>
+               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Editor Modal */}
+      {isEditingSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm shadow-2xl overflow-y-auto">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-4xl shadow-xl flex flex-col my-8">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-black/50 rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Executive Summary</h3>
+              <button onClick={() => setIsEditingSummary(false)} className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className="p-4 flex-1 bg-white dark:bg-gray-900 prose-editor-container">
+              <SimpleMdeReact
+                value={editedInsights}
+                onChange={setEditedInsights}
+                options={{
+                  autofocus: true,
+                  spellChecker: false,
+                  status: false,
+                  toolbar: ["bold", "italic", "strikethrough", "|", "heading-1", "heading-2", "heading-3", "|", "unordered-list", "ordered-list", "|", "preview"]
+                }}
+              />
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50/50 dark:bg-black/50 rounded-b-2xl">
+              <button 
+                onClick={() => setIsEditingSummary(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                   setIsEditingSummary(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
