@@ -91,10 +91,10 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
       className={`flex flex-col bg-gray-50 dark:bg-[#0a0a0a] p-6 space-y-6 relative ${isExporting ? 'h-auto overflow-visible' : 'h-full overflow-y-auto'}`} 
       ref={dashboardRef}
     >
-      <div className="flex justify-between items-center" data-html2canvas-ignore>
-        <div>
+      <div className="flex justify-between flex-col items-start" data-html2canvas-ignore>
+        <div className="mb-4">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Generated Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Based on your latest query</p>
+          <p className="text-sm text-gray-500 mt-0.5">Based on your latest query</p>
         </div>
         <div className="flex gap-2">
           <button 
@@ -209,7 +209,7 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
                  </button>
                </div>
                
-               <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 uppercase tracking-wider">Executive Summary</h3>
+               <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300 mb-2 uppercase tracking-wider">Executive Summary</h3>
                <div className={`text-gray-700 dark:text-gray-300 text-sm leading-relaxed prose prose-blue prose-sm sm:prose-base dark:prose-invert max-w-none pb-8 ${isExporting ? 'text-black prose-p:text-black prose-headings:text-black' : ''}`}>
                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayInsights}</ReactMarkdown>
                </div>

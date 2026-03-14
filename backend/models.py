@@ -14,3 +14,11 @@ class ChatResponse(BaseModel):
     insights: str
     sql: str
     error: Optional[str] = None
+
+class UploadResponse(BaseModel):
+    session_id: str
+    filename: str
+    dataset_name: str
+    rows: int
+    columns: List[str]
+    message: str

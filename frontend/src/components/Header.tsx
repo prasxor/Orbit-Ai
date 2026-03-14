@@ -26,7 +26,7 @@ export default function Header({
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20">
           <span className="text-white font-bold text-lg">O</span>
         </div>
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">Orbit-Ai</h1>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">Orbit AI</h1>
       </div>
 
       <div className="flex items-center gap-3">
