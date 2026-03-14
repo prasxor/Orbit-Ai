@@ -7,10 +7,12 @@ import { useEffect, useState } from "react";
 export default function Header({ 
   onToggleHistory, 
   onToggleCompare,
+  compareCount,
   onToggleCollections
 }: { 
   onToggleHistory: () => void,
-  onToggleCompare: () => void,
+  onToggleCompare: (count: number) => void,
+  compareCount: number,
   onToggleCollections: () => void
 }) {
   const { theme, setTheme } = useTheme();
@@ -31,14 +33,36 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-3">
-        <button 
-          onClick={onToggleCompare}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 transition-colors"
-          title="Compare Queries"
-        >
-          <LayoutPanelLeft className="w-4 h-4" />
-          <span className="hidden sm:inline">Compare</span>
-        </button>
+        <div className="relative group">
+          <button 
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border ${compareCount > 0 ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'}`}
+            title="Compare Queries"
+          >
+            <LayoutPanelLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Compare {compareCount > 0 ? `(${compareCount})` : ''}</span>
+          </button>
+          
+          <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden py-1">
+            <button 
+              onClick={() => onToggleCompare(0)}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${compareCount === 0 || !compareCount ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+            >
+              1 Window
+            </button>
+            <button 
+              onClick={() => onToggleCompare(2)}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${compareCount === 2 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+            >
+              2 Windows
+            </button>
+            <button 
+              onClick={() => onToggleCompare(3)}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${compareCount === 3 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+            >
+              3 Windows
+            </button>
+          </div>
+        </div>
 
         <button 
           onClick={onToggleHistory}

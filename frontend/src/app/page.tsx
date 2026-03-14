@@ -12,7 +12,7 @@ export default function Home() {
   const [compareData, setCompareData] = useState<any | null>(null);
   const [compareData3, setCompareData3] = useState<any | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
+  const [compareCount, setCompareCount] = useState<number>(0);
   const [showCollections, setShowCollections] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [currentQuery, setCurrentQuery] = useState<string>("");
@@ -62,12 +62,12 @@ export default function Home() {
 
   const handleNewData = (data: any, query: string) => {
     setCurrentQuery(query);
-    if (showCompare) {
+    if (compareCount > 0) {
       if (dashboardData === null) {
         setDashboardData(data);
       } else if (compareData === null) {
         setCompareData(data);
-      } else {
+      } else if (compareCount === 3) {
         setCompareData3(data);
       }
     } else {
@@ -79,12 +79,12 @@ export default function Home() {
   };
 
   const handleSelectHistory = (item: HistoryItem) => {
-    if (showCompare) {
+    if (compareCount > 0) {
       if (dashboardData === null) {
         setDashboardData(item.data);
       } else if (compareData === null) {
         setCompareData(item.data);
-      } else {
+      } else if (compareCount === 3) {
         setCompareData3(item.data);
       }
     } else {
@@ -104,10 +104,17 @@ export default function Home() {
         <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[60%] rounded-full bg-emerald-400/40 dark:bg-emerald-500/30 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-blob" style={{ animationDelay: '4s' }}></div>
       </div>
       
-      <div className="z-10 bg-white/50 dark:bg-black/50 backdrop-blur-xl border-b border-gray-200/40 dark:border-gray-800/40 shrink-0">
+      <div className="z-[100] bg-white/50 dark:bg-black/50 backdrop-blur-xl border-b border-gray-200/40 dark:border-gray-800/40 shrink-0">
       <Header 
         onToggleHistory={() => setShowHistory(!showHistory)} 
-        onToggleCompare={() => setShowCompare(!showCompare)} 
+        onToggleCompare={(count: number) => {
+          setCompareCount(count);
+          if (count === 0) {
+            setCompareData(null);
+            setCompareData3(null);
+          }
+        }} 
+        compareCount={compareCount}
         onToggleCollections={() => setShowCollections(true)}
       />
       </div>
@@ -127,10 +134,10 @@ export default function Home() {
           <CollectionsModal 
             onClose={() => setShowCollections(false)}
             onLoadDashboard={(data) => {
-               if (showCompare) {
+               if (compareCount > 0) {
                  if (dashboardData === null) setDashboardData(data);
                  else if (compareData === null) setCompareData(data);
-                 else setCompareData3(data);
+                 else if (compareCount === 3) setCompareData3(data);
                } else {
                  setDashboardData(data);
                }
@@ -140,20 +147,21 @@ export default function Home() {
         )}
 
         {/* Main Content Area */}
-        <main className={`flex-1 min-w-0 h-full flex ${showCompare ? 'flex-col md:flex-row' : 'flex-col'}`}>
-          <div className="flex-1 overflow-hidden backdrop-blur-sm bg-white/20 dark:bg-black/20 border-r border-gray-200/30 dark:border-gray-800/30">
+        <main className={`flex-1 min-w-0 h-full flex ${compareCount > 0 ? 'flex-col md:flex-row' : 'flex-col'}`}>
+          <div className="flex-1 overflow-auto backdrop-blur-sm bg-white/20 dark:bg-black/20 border-r border-gray-200/30 dark:border-gray-800/30">
              <Dashboard data={dashboardData} id="main" isLoading={isAiLoading} onSaveBookmark={handleSaveBookmark} />
           </div>
 
-          {showCompare && (
-            <>
-              <div className="flex-1 overflow-hidden backdrop-blur-sm bg-gray-50/20 dark:bg-[#0a0a0a]/20 border-r border-gray-200/30 dark:border-gray-800/30">
-                 <Dashboard data={compareData} id="compare" isLoading={false} />
-              </div>
-              <div className="flex-1 overflow-hidden backdrop-blur-sm bg-white/20 dark:bg-black/20">
-                 <Dashboard data={compareData3} id="compare3" isLoading={false} />
-              </div>
-            </>
+          {compareCount >= 2 && (
+            <div className={`flex-1 overflow-auto backdrop-blur-sm bg-gray-50/20 dark:bg-[#0a0a0a]/20 ${compareCount === 3 ? 'border-r border-gray-200/30 dark:border-gray-800/30' : ''}`}>
+               <Dashboard data={compareData} id="compare" isLoading={false} />
+            </div>
+          )}
+          
+          {compareCount === 3 && (
+            <div className="flex-1 overflow-auto backdrop-blur-sm bg-white/20 dark:bg-black/20">
+               <Dashboard data={compareData3} id="compare3" isLoading={false} />
+            </div>
           )}
         </main>
 
