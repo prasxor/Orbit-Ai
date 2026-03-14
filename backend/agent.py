@@ -292,6 +292,6 @@ If casual conversation (greeting, no data needed):
 {{"intent":"chat","business_insights":"<helpful conversational reply>"}}
 
 If data analysis needed:
-{{"intent":"analysis","queries":[{{"sql_query":"<valid SQL referencing table {table_name}>","chart_type":"<type>"}}],"business_insights":"<2-3 sentence insight using markdown headings/bullets>"}}
+{{"intent":"analysis","queries":[{{"sql_query":"<valid SQL referencing table {table_name}>","chart_type":"<type>"}}],"business_insights":"<7-10 sentence insight using markdown headings/bullets>"}}
 
 User: {message}"""
