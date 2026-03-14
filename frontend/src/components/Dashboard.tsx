@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Copy, Download, Check, Bookmark, Info, Code } from "lucide-react";
+import { Copy, Download, Check, Bookmark, Code } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useState, useRef } from "react";
@@ -30,8 +30,9 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
   if (!data && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
-        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-          <Info className="w-8 h-8 text-gray-400" />
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-2 shrink-0 bg-gray-900/80 dark:bg-white/10 backdrop-blur-md ring-1 ring-white/20 shadow-xl shadow-black/20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/orbit_ai_logo.svg" alt="Orbit AI" className="w-24 h-24 object-contain" />
         </div>
         <h3 className="text-xl font-medium text-gray-700 dark:text-gray-300">Ready for Insights</h3>
         <p className="text-sm">Ask the AI assistant a question to generate a dashboard.</p>
@@ -88,7 +89,7 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
 
   return (
     <div 
-      className={`flex flex-col bg-gray-50 dark:bg-[#0a0a0a] p-6 space-y-6 relative ${isExporting ? 'h-auto overflow-visible' : 'h-full overflow-y-auto'}`} 
+      className={`flex flex-col bg-transparent p-6 space-y-6 relative ${isExporting ? 'h-auto overflow-visible' : 'h-full overflow-y-auto'}`} 
       ref={dashboardRef}
     >
       <div className="flex justify-between flex-col items-start" data-html2canvas-ignore>
@@ -134,9 +135,14 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
       {/* Grid of charts or Skeleton Loader */}
       <div className="grid grid-cols-1 gap-6">
         {isLoading ? (
-          <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col w-full h-full min-h-[400px] animate-pulse">
-            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded-md w-1/4 mb-4 mx-auto mt-2"></div>
-            <div className="flex-1 w-full bg-gray-100 dark:bg-gray-800 rounded-xl"></div>
+          <div className="bg-white/60 dark:bg-gray-900/60 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-gray-100/50 dark:border-gray-800/50 flex flex-col items-center justify-center w-full min-h-[400px] gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/orbit_ai_logo.svg"
+              alt="Loading"
+              className="w-16 h-16 object-contain [animation:spin-logo_1.4s_linear_infinite] p-2 rounded-full bg-gray-900/80 dark:bg-white/10 backdrop-blur-md ring-1 ring-white/20 shadow-lg"
+            />
+            <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">Generating charts…</p>
           </div>
         ) : (
           charts && charts.map((chart: any, i: number) => {
@@ -177,12 +183,15 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
       {(insights || isLoading) && (
         <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl border border-blue-100 dark:border-blue-900/40 relative group">
           {isLoading ? (
-             <div className="animate-pulse flex flex-col space-y-3">
-               <div className="h-4 bg-blue-200 dark:bg-blue-800/50 rounded w-1/3 mb-2"></div>
-               <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-full"></div>
-               <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
-                <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-4/6"></div>
-             </div>
+            <div className="flex flex-col items-center justify-center py-10 gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/orbit_ai_logo.svg"
+                alt="Loading insights"
+                className="w-14 h-14 object-contain [animation:spin-logo_1.4s_linear_infinite] p-2 rounded-full bg-gray-900/80 dark:bg-white/10 backdrop-blur-md ring-1 ring-white/20 shadow-lg"
+              />
+              <p className="text-sm text-blue-400 font-medium">Generating insights…</p>
+            </div>
           ) : (
             <>
                <div className="absolute bottom-4 right-4 z-10 flex gap-2" data-html2canvas-ignore>

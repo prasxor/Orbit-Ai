@@ -99,12 +99,12 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white dark:bg-black font-sans relative">
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-400/20 dark:bg-blue-900/20 blur-[100px] mix-blend-multiply dark:mix-blend-screen animate-blob"></div>
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 dark:bg-purple-900/20 blur-[100px] mix-blend-multiply dark:mix-blend-screen animate-blob" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[60%] rounded-full bg-emerald-400/20 dark:bg-emerald-900/20 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-blob" style={{ animationDelay: '4s' }}></div>
+        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-400/40 dark:bg-blue-500/30 blur-[100px] mix-blend-multiply dark:mix-blend-screen animate-blob"></div>
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-purple-400/40 dark:bg-purple-500/30 blur-[100px] mix-blend-multiply dark:mix-blend-screen animate-blob" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[60%] rounded-full bg-emerald-400/40 dark:bg-emerald-500/30 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-blob" style={{ animationDelay: '4s' }}></div>
       </div>
       
-      <div className="z-10 bg-white/60 dark:bg-black/60 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shrink-0">
+      <div className="z-10 bg-white/50 dark:bg-black/50 backdrop-blur-xl border-b border-gray-200/40 dark:border-gray-800/40 shrink-0">
       <Header 
         onToggleHistory={() => setShowHistory(!showHistory)} 
         onToggleCompare={() => setShowCompare(!showCompare)} 
@@ -141,16 +141,16 @@ export default function Home() {
 
         {/* Main Content Area */}
         <main className={`flex-1 min-w-0 h-full flex ${showCompare ? 'flex-col md:flex-row' : 'flex-col'}`}>
-          <div className="flex-1 overflow-hidden backdrop-blur-md bg-white/40 dark:bg-black/40 border-r border-gray-200/50 dark:border-gray-800/50">
+          <div className="flex-1 overflow-hidden backdrop-blur-sm bg-white/20 dark:bg-black/20 border-r border-gray-200/30 dark:border-gray-800/30">
              <Dashboard data={dashboardData} id="main" isLoading={isAiLoading} onSaveBookmark={handleSaveBookmark} />
           </div>
 
           {showCompare && (
             <>
-              <div className="flex-1 overflow-hidden backdrop-blur-md bg-gray-50/40 dark:bg-[#0a0a0a]/40 border-r border-gray-200/50 dark:border-gray-800/50">
+              <div className="flex-1 overflow-hidden backdrop-blur-sm bg-gray-50/20 dark:bg-[#0a0a0a]/20 border-r border-gray-200/30 dark:border-gray-800/30">
                  <Dashboard data={compareData} id="compare" isLoading={false} />
               </div>
-              <div className="flex-1 overflow-hidden backdrop-blur-md bg-white/40 dark:bg-black/40">
+              <div className="flex-1 overflow-hidden backdrop-blur-sm bg-white/20 dark:bg-black/20">
                  <Dashboard data={compareData3} id="compare3" isLoading={false} />
               </div>
             </>

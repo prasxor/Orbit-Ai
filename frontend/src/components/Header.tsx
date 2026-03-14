@@ -21,10 +21,11 @@ export default function Header({
   }, []);
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 bg-white dark:bg-[#111] border-b border-gray-200 dark:border-gray-800 shrink-0">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20">
-          <span className="text-white font-bold text-lg">O</span>
+    <header className="flex items-center justify-between px-6 py-3 bg-transparent shrink-0">
+      <div className="flex items-center gap-2.5">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gray-900/80 dark:bg-white/10 backdrop-blur-md ring-1 ring-white/20 shadow-lg shadow-black/20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/orbit_ai_logo.svg" alt="Orbit AI Logo" className="w-12 h-12 object-contain" />
         </div>
         <h1 className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">Orbit AI</h1>
       </div>
