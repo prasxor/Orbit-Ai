@@ -81,7 +81,8 @@ def get_sqlite_schema(db_path: str, table_name: str, conn: sqlite3.Connection | 
         lines = [f"Table: {table_name}", "Columns — use EXACT names below in SQL:"]
         for col in cols:
             col_name = col[1]
-            lines.append(f"  {col_name}")
+            col_type = col[2]
+            lines.append(f"  {col_name} ({col_type})")
 
         return "\n".join(lines)
     except Exception as e:
@@ -213,6 +214,16 @@ def process_user_query(
     table_name = get_table_name(db_path, conn=conn)
     if schema is None:
         schema = get_sqlite_schema(db_path, table_name, conn=conn)
+        
+    # 2.5 intercept schema questions directly to prevent LLM hallucinations
+    low_msg = message.lower()
+    if any(k in low_msg for k in ["columns", "schema", "table structure"]):
+        return {
+            "error": None,
+            "charts": [],
+            "insights": f"Here is the exact structure of the `{table_name}` table currently loaded in the database:\n\n```text\n{schema}\n```\n\nYou can use these exact column names for your queries.",
+            "sql": ""
+        }
 
     # 3. format llm prompt
     prompt = _build_prompt(message, schema, table_name)
