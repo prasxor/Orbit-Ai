@@ -46,7 +46,7 @@ Columns — use EXACT names below in SQL:
 Key rules: never SELECT *, never GROUP BY order_id/product_id, use strftime (not DATE_TRUNC)."""
 
 
-def get_table_name(db_path: str, conn: sqlite3.Connection = None) -> str:
+def get_table_name(db_path: str, conn: sqlite3.Connection | None = None) -> str:
     # fast path for static db
     if db_path == DEFAULT_DB_PATH and conn is None:
         return "sales"
@@ -64,6 +64,29 @@ def get_table_name(db_path: str, conn: sqlite3.Connection = None) -> str:
         return tables[0][0] if tables else "data"
     except Exception:
         return "data"
+
+
+def get_sqlite_schema(db_path: str, table_name: str, conn: sqlite3.Connection | None = None) -> str:
+    """Extract actual SQL schema directly from the active SQLite database for 100% accuracy."""
+    try:
+        active_conn = conn if conn else sqlite3.connect(db_path, check_same_thread=False)
+        cursor = active_conn.cursor()
+
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        cols = cursor.fetchall()
+
+        if conn is None:
+            active_conn.close()
+
+        lines = [f"Table: {table_name}", "Columns — use EXACT names below in SQL:"]
+        for col in cols:
+            col_name = col[1]
+            lines.append(f"  {col_name}")
+
+        return "\n".join(lines)
+    except Exception as e:
+        # Fallback to static if SQLite query fails
+        return AMAZON_SALES_SCHEMA
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +176,7 @@ def build_chart_config(df: pd.DataFrame, chart_type: str) -> dict:
 # Core query runner
 # ---------------------------------------------------------------------------
 
-def _run_query(sql: str, db_path: str, conn: sqlite3.Connection = None) -> pd.DataFrame:
+def _run_query(sql: str, db_path: str, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
     # use provided persistent connection if available, else connect
     active_conn = conn if conn else sqlite3.connect(db_path, check_same_thread=False)
     try:
@@ -171,7 +194,7 @@ def process_user_query(
     message: str,
     db_path: str = DEFAULT_DB_PATH,
     schema: str | None = None,
-    conn: sqlite3.Connection = None,
+    conn: sqlite3.Connection | None = None,
 ) -> dict:
     """
     Pipeline:
@@ -189,7 +212,7 @@ def process_user_query(
     # 2. inject dynamically resolved schema + table details
     table_name = get_table_name(db_path, conn=conn)
     if schema is None:
-        schema = AMAZON_SALES_SCHEMA
+        schema = get_sqlite_schema(db_path, table_name, conn=conn)
 
     # 3. format llm prompt
     prompt = _build_prompt(message, schema, table_name)
