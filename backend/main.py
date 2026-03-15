@@ -2,17 +2,61 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from models import ChatRequest, ChatResponse, ChartData, UploadResponse
 from agent import process_user_query, DEFAULT_DB_PATH, DEFAULT_DATASET_NAME, analyze_csv_schema
-import io
-import sqlite3
 import pandas as pd
 import tempfile
 import os
 import uuid
+import io
+import sqlite3
+from contextlib import asynccontextmanager
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="Orbit AI BI Dashboard API")
+# Set up logging for deployment visibility
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# The persistent database file that will hold our default sales table
+DEFAULT_DB_PATH = "sales.db"
+DEFAULT_CSV_PATH = "Amazon Sales.csv"
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Startup event: Ensure the default CSV is loaded into the persistent SQLite database.
+    This guarantees the 'sales' table exists for the LLM before any requests arrive.
+    """
+    try:
+        if not os.path.exists(DEFAULT_CSV_PATH):
+            logger.error(f"Startup Error: Default dataset '{DEFAULT_CSV_PATH}' not found!")
+            # We don't strictly crash the app because users might still upload custom CSVs,
+            # but we log it as a critical error for the default experience.
+        else:
+            logger.info(f"Loading '{DEFAULT_CSV_PATH}' into '{DEFAULT_DB_PATH}'...")
+            
+            # Read CSV
+            df = pd.read_csv(DEFAULT_CSV_PATH)
+            
+            # Sanitize column names for SQL safety
+            df.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
+            
+            # Use persistent connection (check_same_thread=False allows FastAPI async workers to use it safely if needed)
+            conn = sqlite3.connect(DEFAULT_DB_PATH, check_same_thread=False)
+            
+            # Create or replace the 'sales' table
+            df.to_sql("sales", conn, if_exists="replace", index=False)
+            conn.close()
+            
+            logger.info("Successfully initialized 'sales' table in the database.")
+            
+    except Exception as e:
+        logger.error(f"Failed to initialize database on startup: {str(e)}")
+
+    yield  # Yield control back to FastAPI to start accepting requests
+
+app = FastAPI(title="Orbit AI BI Dashboard API", lifespan=lifespan)
 
 FRONTEND_URLS = os.environ.get("FRONTEND_URL", "http://localhost:3000,https://orbit-ai-olive.vercel.app")
 allowed_origins = [url.strip() for url in FRONTEND_URLS.split(",")] + ["http://localhost:3000"]
@@ -40,21 +84,39 @@ def health_check():
     return {"status": "ok"}
 
 
+@app.get("/tables")
+def list_tables():
+    """
+    Debugging endpoint to verify which tables exist in the persistent database.
+    """
+    try:
+        conn = sqlite3.connect(DEFAULT_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return {"tables": tables, "database": DEFAULT_DB_PATH}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest) -> ChatResponse:
     try:
         # fallback to static db if no session
         db_path = DEFAULT_DB_PATH
         schema = None 
+        conn = None
 
         # load csv session db
         if request.session_id and request.session_id in SESSION_STORE:
             session = SESSION_STORE[request.session_id]
-            db_path = session["db_path"]
+            conn = session.get("conn")
+            db_path = session.get("db_path", db_path) # Fallback to path if conn missing
             schema = session["schema"]
 
         # generate sql & insights
-        result = process_user_query(request.message, db_path=db_path, schema=schema)
+        result = process_user_query(request.message, db_path=db_path, schema=schema, conn=conn)
 
         if result.get("error"):
             return ChatResponse(
@@ -77,10 +139,10 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
 @app.post("/api/upload-csv", response_model=UploadResponse)
 async def upload_csv(file: UploadFile = File(...)) -> UploadResponse:
     """
-    1. Read uploaded CSV with encoding auto-detection
-    2. Build schema string using pure Python (no LLM call — fast and free)
-    3. Load into temporary SQLite DB
-    4. Return session_id + metadata for the frontend dataset selector
+    1. Read uploaded CSV directly into memory (zero disk IO required).
+    2. Build schema string purely from pandas introspection.
+    3. Load into a persistent in-memory SQLite DB.
+    4. If ENVIRONMENT=development, optionally save to `uploads/` for debugging.
     """
     # ensure valid csv
     if not file.filename or not file.filename.lower().endswith(".csv"):
@@ -109,6 +171,21 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadResponse:
         if df.empty:
             raise HTTPException(status_code=400, detail="The uploaded CSV file is empty.")
 
+        # Dev mode file physical save (for debugging raw user files)
+        environment = os.getenv("ENVIRONMENT", "production")
+        if environment == "development":
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+            safe_filename = file.filename or "unknown.csv"
+            save_path = os.path.join(upload_dir, safe_filename)
+            try:
+                # Need to write contents since we already read it
+                with open(save_path, "wb") as f:
+                    f.write(contents)
+                logger.info(f"Dev mode: Saved uploaded file to {save_path}")
+            except Exception as e:
+                logger.warning(f"Dev mode: Failed to save file to uploads: {str(e)}")
+
         # Reject binary files masked as .csv (bplist/webloc etc.)
         def _is_readable(name: str) -> bool:
             return all(c.isprintable() or c in (" ", "\t") for c in str(name))
@@ -126,20 +203,19 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadResponse:
         table_name = "data"
         schema = analyze_csv_schema(df, table_name)
 
-        # setup isolated sqlite instance for this session
-        db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        db_path = db_file.name
-        db_file.close()
-
-        conn = sqlite3.connect(db_path)
+        # Connect to ephemeral in-memory sqlite instance
+        # check_same_thread=False allows background FastAPI threads to share it
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
         df.to_sql(table_name, conn, if_exists="replace", index=False)
-        conn.close()
+        
+        # We DO NOT close this connection, otherwise the :memory: db vanishes.
+        # We store the connection itself in the session dict so the agent can query it later.
 
         # Register session
         session_id = str(uuid.uuid4())
         dataset_name = os.path.splitext(file.filename)[0]  # filename without extension
         SESSION_STORE[session_id] = {
-            "db_path": db_path,
+            "conn": conn,
             "schema": schema,
             "dataset_name": dataset_name,
         }

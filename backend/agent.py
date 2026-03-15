@@ -46,18 +46,24 @@ Columns — use EXACT names below in SQL:
 Key rules: never SELECT *, never GROUP BY order_id/product_id, use strftime (not DATE_TRUNC)."""
 
 
-def get_table_name(db_path: str) -> str:
+def get_table_name(db_path: str, conn: sqlite3.Connection = None) -> str:
     # fast path for static db
-    if db_path == DEFAULT_DB_PATH:
+    if db_path == DEFAULT_DB_PATH and conn is None:
         return "sales"
     
     # fetch first table for custom uploaded csvs
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = cursor.fetchall()
-    conn.close()
-    return tables[0][0] if tables else "data"
+    try:
+        active_conn = conn if conn else sqlite3.connect(db_path, check_same_thread=False)
+        cursor = active_conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        
+        if conn is None:
+            active_conn.close()
+            
+        return tables[0][0] if tables else "data"
+    except Exception:
+        return "data"
 
 
 # ---------------------------------------------------------------------------
@@ -147,12 +153,14 @@ def build_chart_config(df: pd.DataFrame, chart_type: str) -> dict:
 # Core query runner
 # ---------------------------------------------------------------------------
 
-def _run_query(sql: str, db_path: str) -> pd.DataFrame:
-    conn = sqlite3.connect(db_path)
+def _run_query(sql: str, db_path: str, conn: sqlite3.Connection = None) -> pd.DataFrame:
+    # use provided persistent connection if available, else connect
+    active_conn = conn if conn else sqlite3.connect(db_path, check_same_thread=False)
     try:
-        return pd.read_sql_query(sql, conn)
+        return pd.read_sql_query(sql, active_conn)
     finally:
-        conn.close()
+        if conn is None:
+            active_conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +171,7 @@ def process_user_query(
     message: str,
     db_path: str = DEFAULT_DB_PATH,
     schema: str | None = None,
+    conn: sqlite3.Connection = None,
 ) -> dict:
     """
     Pipeline:
@@ -178,7 +187,7 @@ def process_user_query(
         return _QUERY_CACHE[ck]
 
     # 2. inject dynamically resolved schema + table details
-    table_name = get_table_name(db_path)
+    table_name = get_table_name(db_path, conn=conn)
     if schema is None:
         schema = AMAZON_SALES_SCHEMA
 
@@ -239,7 +248,7 @@ def process_user_query(
             chart_type = q.get("chart_type", "bar_chart")
             combined_sql += sql + "\n\n"
             try:
-                df = _run_query(sql, db_path)
+                df = _run_query(sql, db_path, conn=conn)
                 if not df.empty:
                     cfg = build_chart_config(df, chart_type)
                     if cfg:
