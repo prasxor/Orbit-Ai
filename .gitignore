@@ -70,8 +70,8 @@ htmlcov/
 .ipynb_checkpoints/
 
 # SQLite
-*.db
-*.sqlite3
+# *.db
+# *.sqlite3
 
 # ==================================
 # MISC / OS
