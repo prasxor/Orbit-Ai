@@ -9,7 +9,7 @@ import { toPng } from "html-to-image";
 import { useTheme } from "next-themes";
 import "easymde/dist/easymde.min.css";
 
-// Plotly requires browser environment
+// plotly needs window obj so dynamic import it for nextjs ssr bypass
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 const SimpleMdeReact = dynamic(() => import("react-simplemde-editor"), { ssr: false });
 
@@ -48,7 +48,7 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
     setIsExporting(true);
     
     try {
-      // Give React a tick and charts a chance to physically resize if needed
+      // wait for react 1 render cycle so charts can paint resize first 
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const element = dashboardRef.current;
@@ -178,10 +178,10 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
         <div className="mt-6 w-full bg-gray-950 rounded-xl border border-gray-800 shadow-inner p-6">
           <pre className="font-mono text-[13px] sm:text-sm text-green-400 leading-loose whitespace-pre-wrap break-words">
             {(() => {
-              // Clean up markdown block format
+              // strip markdown code block ticks from gemini raw response
               let cleanSql = String(sql).replace(/```sql/gi, '').replace(/```/g, '').trim();
               
-              // Add simple line breaks to make long one-line queries readable
+              // split long one-liners by inserting newline before keywords
               if (!cleanSql.includes('\n') || cleanSql.split('\n').length < 3) {
                 // Ensure there's a space before inserting a newline to avoid concatenating keywords
                 cleanSql = cleanSql.replace(/\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|LEFT JOIN|RIGHT JOIN|INNER JOIN|JOIN)\s+/gi, '\n$1 ');

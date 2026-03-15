@@ -19,7 +19,8 @@ class GeminiService:
                 self.api_keys = [single_key.strip()]
                 
         self.current_key_index = 0
-        # Recommended default fast model for reasoning tasks
+        
+        # 2.5-flash is fast enough for dynamic sql generation
         self.model = "gemini-2.5-flash"
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
@@ -35,22 +36,24 @@ class GeminiService:
         if not self.api_keys:
              raise ValueError("No Gemini API keys configured. Set GEMINI_API_KEYS in .env")
 
-        # Give it a few attempts to gracefully failover to other keys
+        # max 5 attempts to failover on 429 rate limits
         max_attempts = min(len(self.api_keys) + 2, 5)
         attempts = 0
         last_error = None
 
         while attempts < max_attempts:
+            # cycle to next key
             api_key = self._get_next_key()
             url = f"{self.base_url}?key={api_key}"
             
+            # format exactly as gemini rest api expects
             payload = {
                 "contents": [{
                     "role": "user",
                     "parts": [{"text": prompt}]
                 }],
                 "generationConfig": {
-                    "temperature": 0.1, # Low temperature for more deterministic JSON outputs
+                    "temperature": 0.1, # keep low for deterministic json parsing
                 }
             }
 

@@ -8,15 +8,23 @@ import HistoryPanel, { HistoryItem } from "@/components/HistoryPanel";
 import CollectionsModal from "@/components/CollectionsModal";
 
 export default function Home() {
+  // --- Core Application State ---
+  // global dashboard state for passing to children components
   const [dashboardData, setDashboardData] = useState<any | null>(null);
   const [compareData, setCompareData] = useState<any | null>(null);
   const [compareData3, setCompareData3] = useState<any | null>(null);
+  
+  // UI toggles
   const [showHistory, setShowHistory] = useState(false);
   const [compareCount, setCompareCount] = useState<number>(0);
   const [showCollections, setShowCollections] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
+  
+  // Chat & History state
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  
+  // Hydration state (to prevent Next.js SSR mismatch with localStorage)
   const [mounted, setMounted] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
@@ -56,10 +64,12 @@ export default function Home() {
     };
     
     collections.unshift(newItem);
+    collections.unshift(newItem);
     localStorage.setItem("orbitai-collections", JSON.stringify(collections));
     alert("Dashboard bookmarked successfully!");
   };
 
+  // receive new dashboard payload from chatpanel and update grid
   const handleNewData = (data: any, query: string) => {
     setCurrentQuery(query);
     if (compareCount > 0) {
@@ -146,7 +156,9 @@ export default function Home() {
           />
         )}
 
-        {/* Main Content Area */}
+        {/* --- Main Content Area --- 
+            todo: refactor flex to handle 4+ comparisons later if needed
+        */}
         <main className={`flex-1 min-w-0 h-full flex ${compareCount > 0 ? 'flex-col md:flex-row' : 'flex-col'}`}>
           <div className="flex-1 overflow-auto backdrop-blur-sm bg-white/20 dark:bg-black/20 border-r border-gray-200/30 dark:border-gray-800/30">
              <Dashboard data={dashboardData} id="main" isLoading={isAiLoading} onSaveBookmark={handleSaveBookmark} />

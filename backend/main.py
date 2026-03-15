@@ -11,6 +11,7 @@ import uuid
 
 app = FastAPI(title="Orbit AI BI Dashboard API")
 
+# setup cors for local next.js client
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -19,21 +20,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Session store: session_id -> { db_path, schema, dataset_name }
+# hold temp db states for csv uploads (session_id -> db info)
+# TODO: migrate to redis for prod
 SESSION_STORE: dict[str, dict] = {}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest) -> ChatResponse:
     try:
+        # fallback to static db if no session
         db_path = DEFAULT_DB_PATH
-        schema = None  # agent will use static Amazon Sales schema
+        schema = None 
 
+        # load csv session db
         if request.session_id and request.session_id in SESSION_STORE:
             session = SESSION_STORE[request.session_id]
             db_path = session["db_path"]
             schema = session["schema"]
 
+        # generate sql & insights
         result = process_user_query(request.message, db_path=db_path, schema=schema)
 
         if result.get("error"):
@@ -62,6 +67,7 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadResponse:
     3. Load into temporary SQLite DB
     4. Return session_id + metadata for the frontend dataset selector
     """
+    # ensure valid csv
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are supported.")
 
@@ -98,14 +104,14 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadResponse:
                 detail="This doesn't look like a valid CSV — column headers contain binary/non-printable data. Please export a plain-text CSV from Excel, Google Sheets, or pandas."
             )
 
-        # Sanitize column names
+        # clean column spaces/dashes before sql load
         df.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
 
-        # Build schema string purely from DataFrame introspection — zero LLM calls
+        # dump schema string via simple pandas eval (no llm roundtrip needed yet)
         table_name = "data"
         schema = analyze_csv_schema(df, table_name)
 
-        # Load into temp SQLite DB
+        # setup isolated sqlite instance for this session
         db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         db_path = db_file.name
         db_file.close()

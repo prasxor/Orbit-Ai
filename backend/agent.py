@@ -13,12 +13,14 @@ DEFAULT_DB_PATH = "sales.db"
 DEFAULT_DATASET_NAME = "Amazon Sales"
 
 # ---------------------------------------------------------------------------
-# Query result cache:  {cache_key: result_dict}
+# Query result cache: {cache_key: result_dict}
+# caching identical prompts to save on api calls
 # ---------------------------------------------------------------------------
 _QUERY_CACHE: dict[str, dict] = {}
 
 
 def _cache_key(message: str, db_path: str) -> str:
+    # md5 hash for prompt + db path to prevent collisions
     return hashlib.md5(f"{db_path}||{message.strip().lower()}".encode()).hexdigest()
 
 
@@ -45,8 +47,11 @@ Key rules: never SELECT *, never GROUP BY order_id/product_id, use strftime (not
 
 
 def get_table_name(db_path: str) -> str:
+    # fast path for static db
     if db_path == DEFAULT_DB_PATH:
         return "sales"
+    
+    # fetch first table for custom uploaded csvs
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -95,6 +100,7 @@ def analyze_csv_schema(df: pd.DataFrame, table_name: str = "data") -> str:
 
 # ---------------------------------------------------------------------------
 # Chart config builder
+# formats df into plotly spec json
 # ---------------------------------------------------------------------------
 
 def build_chart_config(df: pd.DataFrame, chart_type: str) -> dict:
@@ -166,17 +172,17 @@ def process_user_query(
       4. Run SQL, build Plotly configs.
       5. Cache and return result.
     """
-    # 1. Cache lookup
+    # 1. cache hit check
     ck = _cache_key(message, db_path)
     if ck in _QUERY_CACHE:
         return _QUERY_CACHE[ck]
 
-    # 2. Determine schema and table name
+    # 2. inject dynamically resolved schema + table details
     table_name = get_table_name(db_path)
     if schema is None:
         schema = AMAZON_SALES_SCHEMA
 
-    # 3. Build prompt
+    # 3. format llm prompt
     prompt = _build_prompt(message, schema, table_name)
 
     # 4. Call Gemini (single call)

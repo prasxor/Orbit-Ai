@@ -11,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Dataset entry: either the default or an uploaded one
+// if sessionId is null, backend defaults to static Amazon Sales db
 interface Dataset {
   sessionId: string | null;   // null = default Amazon Sales
   label: string;              // display name
@@ -60,7 +61,7 @@ export default function ChatPanel({
   const datasetMenuRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
-  // Close dataset menu on outside click
+  // cleanup dataset dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (datasetMenuRef.current && !datasetMenuRef.current.contains(e.target as Node)) {
@@ -98,6 +99,7 @@ export default function ChatPanel({
   };
 
   // ---- Dataset upload ----
+  // posts csv to fastapi backend for in-memory sqlite db creation
   const uploadCSV = async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setMessages((prev) => [
@@ -193,6 +195,7 @@ export default function ChatPanel({
     setTimeout(scrollToBottom, 50);
 
     try {
+      // route query with optional session context (for custom csvs)
       const res = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,6 +206,7 @@ export default function ChatPanel({
         setMessages((prev) => [...prev, { role: "ai", content: `Error: ${data.error}` }]);
       } else {
         setMessages((prev) => [...prev, { role: "ai", content: data.insights || "Here are your insights." }]);
+        // propogate dashboard payload up to page.tsx renderer
         onNewData(data, userMessage);
       }
     } catch {
