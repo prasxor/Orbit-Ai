@@ -40,7 +40,7 @@ export default function ChatPanel({
     {
       role: "ai",
       content:
-        "Hello! I'm your AI Business Advisor. I'm currently analysing the **Amazon Sales** dataset.\n\nYou can upload any CSV using the dataset selector above to switch datasets instantly.",
+        "Hello! I'm Orbit AI. I'm currently analysing the **Amazon Sales** dataset.\n\nYou can upload any CSV using the dataset selector above to switch datasets instantly.",
     },
   ]);
   const [loading, setLoading] = useState(false);
