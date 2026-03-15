@@ -54,29 +54,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Orbit AI BI Dashboard API", lifespan=lifespan)
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-
 # setup cors for local next.js client and production deployment
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=[
-#         FRONTEND_URL,
-#         "http://localhost:3000"
-#     ],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-origins = [
-    FRONTEND_URL,
-    "http://localhost:3000",
-    "https://orbit-ai-olive.vercel.app"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "https://orbit-ai-olive.vercel.app",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
