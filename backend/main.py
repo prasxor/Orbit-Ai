@@ -14,12 +14,13 @@ load_dotenv()
 
 app = FastAPI(title="Orbit AI BI Dashboard API")
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URLS = os.environ.get("FRONTEND_URL", "http://localhost:3000,https://orbit-ai-olive.vercel.app")
+allowed_origins = [url.strip() for url in FRONTEND_URLS.split(",")] + ["http://localhost:3000"]
 
 # setup cors for local next.js client and production deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "http://localhost:3000"],
+    allow_origins=list(set(allowed_origins)), # Remove duplicates
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
