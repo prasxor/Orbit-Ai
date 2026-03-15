@@ -1,6 +1,7 @@
 import os
 import logging
 import requests
+import time
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,8 @@ class GeminiService:
                 self.api_keys = [single_key.strip()]
                 
         self.current_key_index = 0
+        self.blocked_keys = {}
+        self.cooldown_seconds = 30 * 60 # 30 minutes
         
         # 2.5-flash is fast enough for dynamic sql generation
         self.model = "gemini-2.5-flash"
@@ -28,9 +31,23 @@ class GeminiService:
         if not self.api_keys:
             raise ValueError("No Gemini API keys configured. Set GEMINI_API_KEYS in .env")
             
-        key = self.api_keys[self.current_key_index]
-        self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-        return key
+        # Clean up expired bans
+        current_time = time.time()
+        expired_keys = [k for k, unblock_time in self.blocked_keys.items() if current_time >= unblock_time]
+        for k in expired_keys:
+            del self.blocked_keys[k]
+
+        # Find the next available unblocked key
+        start_index = self.current_key_index
+        for _ in range(len(self.api_keys)):
+            key = self.api_keys[self.current_key_index]
+            self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+            
+            if key not in self.blocked_keys:
+                return key
+                
+        # If we reach here, all keys are actively blocked
+        raise Exception("All API keys are temporarily rate limited. Please try again later.")
 
     def generate_content(self, prompt: str) -> str:
         if not self.api_keys:
@@ -68,8 +85,14 @@ class GeminiService:
                     else:
                         raise Exception(f"Unexpected empty response structure: {data}")
                         
-                elif response.status_code in [429, 401, 403, 500, 503]:
-                    # Rate limits or authentication issues, rotate and try next!
+                elif response.status_code in [429]:
+                    # Rate limited: Block THIS specific key for 30 minutes
+                    self.blocked_keys[api_key] = time.time() + self.cooldown_seconds
+                    last_error = f"HTTP 429: Rate limited. Blocking key for {self.cooldown_seconds}s."
+                    logger.warning(f"Gemini API rate limit hit. Rotating key.")
+                
+                elif response.status_code in [401, 403, 500, 503]:
+                    # Other remote issues, rotate and try next
                     last_error = f"HTTP {response.status_code}: {response.text}"
                     logger.warning(f"Gemini API failure (HTTP {response.status_code}). Rotating key...")
                 else:
@@ -81,6 +104,9 @@ class GeminiService:
 
             attempts += 1
 
+        if last_error and str(last_error).startswith("All API keys"):
+            raise Exception(last_error)
+            
         raise Exception(f"Failed to generate content from Gemini after {attempts} attempts. Last error: {last_error}")
 
 gemini_service = GeminiService()

@@ -232,6 +232,9 @@ def process_user_query(
                 queries = [{"sql_query": llm_resp["sql_query"], "chart_type": llm_resp.get("chart_type", "bar_chart")}]
 
         except Exception as e:
+            if "All API keys are temporarily rate limited" in str(e):
+                return {"error": "All API keys are temporarily rate limited. Please try again later.", "charts": [], "insights": "", "sql": ""}
+                
             if attempts == max_retries:
                 return {"error": f"Failed to get valid response from LLM: {e}", "charts": [], "insights": "", "sql": ""}
             last_error = f"JSON parse error: {e}"
