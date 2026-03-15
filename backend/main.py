@@ -35,9 +35,20 @@ async def lifespan(app: FastAPI):
             # but we log it as a critical error for the default experience.
         else:
             logger.info(f"Loading '{DEFAULT_CSV_PATH}' into '{DEFAULT_DB_PATH}'...")
-            
-            # Read CSV
-            df = pd.read_csv(DEFAULT_CSV_PATH)
+            # Read CSV with encoding fallback (sales data isn't always utf-8)
+            df = None
+            for encoding in ("utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"):
+                try:
+                    df = pd.read_csv(DEFAULT_CSV_PATH, encoding=encoding)
+                    break
+                except (UnicodeDecodeError, Exception):
+                    continue
+
+            if df is None:
+                # Last resort fallback if all else fails
+                df = pd.read_csv(DEFAULT_CSV_PATH, encoding="utf-8", errors="replace")
+                
+            assert df is not None
             
             # Sanitize column names for SQL safety
             df.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
