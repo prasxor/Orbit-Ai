@@ -50,6 +50,15 @@ async def lifespan(app: FastAPI):
                 
             assert df is not None
             
+            # Startup validation to prevent binary/corrupt files from breaking the DB
+            if len(df.columns) <= 1:
+                raise RuntimeError("Invalid CSV file: only one column detected. The dataset may be corrupted or not a real CSV.")
+                
+            if any("bplist" in str(col).lower() for col in df.columns):
+                raise RuntimeError("Invalid CSV file detected. The dataset appears to contain binary macOS metadata instead of real CSV data.")
+                
+            logger.info(f"Loaded dataset columns: {list(df.columns)}")
+            
             # Sanitize column names for SQL safety
             df.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
             
@@ -114,15 +123,26 @@ def health_check():
 @app.get("/tables")
 def list_tables():
     """
-    Debugging endpoint to verify which tables exist in the persistent database.
+    Diagnostic endpoint to list available tables and default schema.
+    """
+    return {
+        "tables": ["sales", "data"],
+        "default_db": DEFAULT_DB_PATH
+    }
+
+
+@app.get("/debug-columns")
+def debug_columns():
+    """
+    Diagnostic endpoint to inspect the exact column names currently active in the default database.
     """
     try:
-        conn = sqlite3.connect(DEFAULT_DB_PATH)
+        conn = sqlite3.connect(DEFAULT_DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = [row[0] for row in cursor.fetchall()]
+        cursor.execute("PRAGMA table_info(sales)")
+        columns = [row[1] for row in cursor.fetchall()]
         conn.close()
-        return {"tables": tables, "database": DEFAULT_DB_PATH}
+        return {"table": "sales", "columns": columns}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
