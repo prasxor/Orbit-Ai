@@ -11,18 +11,28 @@ export async function callBackend(endpoint: string, options: RequestInit = {}) {
     defaultHeaders["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${baseUrl}${endpoint}`, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-  });
+  try {
+    const response = await fetch(`${baseUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
+      },
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || errorData.error || "Backend request failed");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || errorData.error || "Backend request failed");
+    }
+
+    return response.json();
+  } catch (error: any) {
+    // Intercept CORS / 502 / Offline "Failed to fetch" errors gracefully
+    if (error.message === "Failed to fetch" || error.name === "TypeError" || error.message.includes("NetworkError")) {
+      throw new Error(
+        "Cannot connect to the backend server. It may be deploying a new update or is currently offline. Please wait a moment and try again."
+      );
+    }
+    throw error;
   }
-
-  return response.json();
 }
