@@ -186,18 +186,21 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadResponse:
             except Exception as e:
                 logger.warning(f"Dev mode: Failed to save file to uploads: {str(e)}")
 
-        # Reject binary files masked as .csv (bplist/webloc etc.)
-        def _is_readable(name: str) -> bool:
-            return all(c.isprintable() or c in (" ", "\t") for c in str(name))
+        # Drop entirely empty unnamed columns pandas sometimes picks up from trailing commas
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-        if not all(_is_readable(c) for c in df.columns):
-            raise HTTPException(
-                status_code=400,
-                detail="This doesn't look like a valid CSV — column headers contain binary/non-printable data. Please export a plain-text CSV from Excel, Google Sheets, or pandas."
-            )
-
-        # clean column spaces/dashes before sql load
-        df.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
+        # clean column spaces/dashes and remove any weird hidden binary characters
+        # making sure it is safe for SQLite queries
+        clean_cols = []
+        for c in df.columns:
+            # Keep only alphanumeric chars, replace everything else with underscore
+            sanitized = "".join(ch if ch.isalnum() else "_" for ch in str(c))
+            # Collapse multiple underscores and trim
+            import re
+            sanitized = re.sub(r'_+', '_', sanitized).strip('_').lower()
+            clean_cols.append(sanitized if sanitized else "column")
+            
+        df.columns = clean_cols
 
         # dump schema string via simple pandas eval (no llm roundtrip needed yet)
         table_name = "data"
