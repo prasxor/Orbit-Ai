@@ -168,15 +168,27 @@ export default function Dashboard({ data, id, isLoading, onSaveBookmark }: { dat
             onClick={() => setShowSql(!showSql)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 transition"
           >
-            <Code className="w-4 h-4" />
+            <Code className="w-4 h-4 " />
             {showSql ? "Hide SQL" : "Show SQL"}
           </button>
         </div>
       </div>
 
       {showSql && sql && !isLoading && (
-        <div className="p-4 bg-gray-900 text-green-400 rounded-xl font-mono text-sm overflow-x-auto shadow-inner">
-          <pre>{sql}</pre>
+        <div className="mt-6 w-full bg-gray-950 rounded-xl border border-gray-800 shadow-inner p-6">
+          <pre className="font-mono text-[13px] sm:text-sm text-green-400 leading-loose whitespace-pre-wrap break-words">
+            {(() => {
+              // Clean up markdown block format
+              let cleanSql = String(sql).replace(/```sql/gi, '').replace(/```/g, '').trim();
+              
+              // Add simple line breaks to make long one-line queries readable
+              if (!cleanSql.includes('\n') || cleanSql.split('\n').length < 3) {
+                // Ensure there's a space before inserting a newline to avoid concatenating keywords
+                cleanSql = cleanSql.replace(/\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|LEFT JOIN|RIGHT JOIN|INNER JOIN|JOIN)\s+/gi, '\n$1 ');
+              }
+              return cleanSql;
+            })()}
+          </pre>
         </div>
       )}
 
