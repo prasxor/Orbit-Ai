@@ -30,9 +30,7 @@ async def lifespan(app: FastAPI):
     """
     try:
         if not os.path.exists(DEFAULT_CSV_PATH):
-            logger.error(f"Startup Error: Default dataset '{DEFAULT_CSV_PATH}' not found!")
-            # We don't strictly crash the app because users might still upload custom CSVs,
-            # but we log it as a critical error for the default experience.
+            raise RuntimeError(f"Startup Error: Default dataset '{DEFAULT_CSV_PATH}' not found! Stopping startup to prevent empty database.")
         else:
             logger.info(f"Loading '{DEFAULT_CSV_PATH}' into '{DEFAULT_DB_PATH}'...")
             # Read CSV with encoding fallback (sales data isn't always utf-8)
@@ -67,6 +65,13 @@ async def lifespan(app: FastAPI):
             
             # Create or replace the 'sales' table
             df.to_sql("sales", conn, if_exists="replace", index=False)
+            
+            # Verify the table was created properly
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(sales)")
+            created_cols = [row[1] for row in cursor.fetchall()]
+            logger.info(f"Verified SQLite table 'sales' created with columns: {created_cols}")
+            
             conn.close()
             
             logger.info("Successfully initialized 'sales' table in the database.")
@@ -131,6 +136,18 @@ def list_tables():
     }
 
 
+@app.get("/schema")
+def schema_endpoint():
+    """
+    Diagnostic endpoint to list column names via dynamic schema extractor.
+    """
+    from agent import get_sqlite_schema
+    try:
+        return {"schema": get_sqlite_schema(DEFAULT_DB_PATH, "sales")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+        
+        
 @app.get("/debug-columns")
 def debug_columns():
     """
