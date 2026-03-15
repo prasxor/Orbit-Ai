@@ -20,64 +20,35 @@ logger = logging.getLogger(__name__)
 
 # The persistent database file that will hold our default sales table
 DEFAULT_DB_PATH = "sales.db"
-DEFAULT_CSV_PATH = "Amazon Sales.csv"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Startup event: Ensure the default CSV is loaded into the persistent SQLite database.
-    This guarantees the 'sales' table exists for the LLM before any requests arrive.
+    Startup event: Ensure the default SQLite database exists.
+    Instead of recreating it from CSV every time, we just verify the existing sales.db.
     """
     try:
-        if not os.path.exists(DEFAULT_CSV_PATH):
-            raise RuntimeError(f"Startup Error: Default dataset '{DEFAULT_CSV_PATH}' not found! Stopping startup to prevent empty database.")
-        else:
-            logger.info(f"Loading '{DEFAULT_CSV_PATH}' into '{DEFAULT_DB_PATH}'...")
-            # Read CSV with encoding fallback (sales data isn't always utf-8)
-            df = None
-            for encoding in ("utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"):
-                try:
-                    df = pd.read_csv(DEFAULT_CSV_PATH, encoding=encoding)
-                    break
-                except (UnicodeDecodeError, Exception):
-                    continue
-
-            if df is None:
-                # Last resort fallback if all else fails
-                df = pd.read_csv(DEFAULT_CSV_PATH, encoding="utf-8", errors="replace")
-                
-            assert df is not None
+        if not os.path.exists(DEFAULT_DB_PATH):
+            raise RuntimeError(f"Startup Error: Default database '{DEFAULT_DB_PATH}' not found! Stopping startup.")
             
-            # Startup validation to prevent binary/corrupt files from breaking the DB
-            if len(df.columns) <= 1:
-                raise RuntimeError("Invalid CSV file: only one column detected. The dataset may be corrupted or not a real CSV.")
-                
-            if any("bplist" in str(col).lower() for col in df.columns):
-                raise RuntimeError("Invalid CSV file detected. The dataset appears to contain binary macOS metadata instead of real CSV data.")
-                
-            logger.info(f"Loaded dataset columns: {list(df.columns)}")
+        logger.info(f"Verifying existing database '{DEFAULT_DB_PATH}'...")
+        
+        conn = sqlite3.connect(DEFAULT_DB_PATH, check_same_thread=False)
+        cursor = conn.cursor()
+        
+        # Verify the table exists and check its columns
+        cursor.execute("PRAGMA table_info(sales)")
+        created_cols = [row[1] for row in cursor.fetchall()]
+        
+        if not created_cols:
+            raise RuntimeError(f"Startup Error: 'sales' table is missing or empty in '{DEFAULT_DB_PATH}'.")
             
-            # Sanitize column names for SQL safety
-            df.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
-            
-            # Use persistent connection (check_same_thread=False allows FastAPI async workers to use it safely if needed)
-            conn = sqlite3.connect(DEFAULT_DB_PATH, check_same_thread=False)
-            
-            # Create or replace the 'sales' table
-            df.to_sql("sales", conn, if_exists="replace", index=False)
-            
-            # Verify the table was created properly
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(sales)")
-            created_cols = [row[1] for row in cursor.fetchall()]
-            logger.info(f"Verified SQLite table 'sales' created with columns: {created_cols}")
-            
-            conn.close()
-            
-            logger.info("Successfully initialized 'sales' table in the database.")
+        logger.info(f"Verified SQLite table 'sales' exists with columns: {created_cols}")
+        conn.close()
             
     except Exception as e:
         logger.error(f"Failed to initialize database on startup: {str(e)}")
+        raise e # Re-raise to cleanly crash the worker if DB is missing
 
     yield  # Yield control back to FastAPI to start accepting requests
 
