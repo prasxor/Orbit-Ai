@@ -9,6 +9,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "framer-motion";
+import { callBackend } from "@/lib/api";
 
 // Dataset entry: either the default or an uploaded one
 // if sessionId is null, backend defaults to static Amazon Sales db
@@ -118,15 +119,14 @@ export default function ChatPanel({
 
     try {
       const phaseTimer = setTimeout(() => setUploadPhase("processing"), 500);
-      const res = await fetch("http://localhost:8000/api/upload-csv", {
+      
+      const data = await callBackend("/api/upload-csv", {
         method: "POST",
         body: formData,
       });
+      
       clearTimeout(phaseTimer);
       setUploadPhase("processing");
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Upload failed");
 
       const newDataset: Dataset = {
         sessionId: data.session_id,
@@ -196,12 +196,11 @@ export default function ChatPanel({
 
     try {
       // route query with optional session context (for custom csvs)
-      const res = await fetch("http://localhost:8000/api/chat", {
+      const data = await callBackend("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMessage, session_id: activeDataset.sessionId }),
       });
-      const data = await res.json();
+      
       if (data.error) {
         setMessages((prev) => [...prev, { role: "ai", content: `Error: ${data.error}` }]);
       } else {
@@ -209,8 +208,8 @@ export default function ChatPanel({
         // propogate dashboard payload up to page.tsx renderer
         onNewData(data, userMessage);
       }
-    } catch {
-      setMessages((prev) => [...prev, { role: "ai", content: "Failed to connect to the server." }]);
+    } catch (err: any) {
+      setMessages((prev) => [...prev, { role: "ai", content: `Failed to connect to the server. ${err.message}` }]);
     }
     setLoading(false);
     onLoading(false);

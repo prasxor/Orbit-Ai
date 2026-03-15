@@ -8,13 +8,18 @@ import pandas as pd
 import tempfile
 import os
 import uuid
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Orbit AI BI Dashboard API")
 
-# setup cors for local next.js client
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+
+# setup cors for local next.js client and production deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[FRONTEND_URL, "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -23,6 +28,15 @@ app.add_middleware(
 # hold temp db states for csv uploads (session_id -> db info)
 # TODO: migrate to redis for prod
 SESSION_STORE: dict[str, dict] = {}
+
+
+@app.get("/health")
+def health_check():
+    """
+    Simple health check endpoint to warm up the server on cloud platforms
+    and verify the API is running correctly.
+    """
+    return {"status": "ok"}
 
 
 @app.post("/api/chat", response_model=ChatResponse)

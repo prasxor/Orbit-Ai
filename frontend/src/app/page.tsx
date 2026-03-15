@@ -30,6 +30,12 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Warm up the backend to reduce cold start delays on serverless platforms
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    fetch(`${API_BASE_URL}/health`).catch(() => {});
+
+    // load previous dashboards from storage
     const saved = localStorage.getItem("orbitai-history");
     if (saved) {
       try {
