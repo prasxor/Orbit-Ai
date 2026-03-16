@@ -107,15 +107,66 @@ def build_chart_config(df: pd.DataFrame, chart_type: str) -> dict:
     if df.empty or len(df.columns) < 2:
         return {}
 
+    # Detect column roles
     x_col = df.columns[0]
-    y_col = df.columns[1]
-    for col in df.columns[1:]:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            y_col = col
-            break
+
+    # If dataset has 3 columns (time/category/value pattern)
+    # Example: month, product_category, revenue
+    series_col = None
+    y_col = None
+
+    if len(df.columns) >= 3:
+        potential_series = df.columns[1]
+        potential_value = df.columns[2]
+
+        if not pd.api.types.is_numeric_dtype(df[potential_series]) and pd.api.types.is_numeric_dtype(df[potential_value]):
+            series_col = potential_series
+            y_col = potential_value
+
+    # fallback logic
+    if y_col is None:
+        y_col = df.columns[1]
+        for col in df.columns[1:]:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                y_col = col
+                break
 
     x_data = df[x_col].tolist()
-    y_data = df[y_col].tolist()
+
+    traces = []
+
+    if series_col:
+        # Multi-series chart (e.g. category trends over time)
+        grouped = df.groupby(series_col)
+
+        for name, g in grouped:
+            if chart_type == "line_chart":
+                traces.append({
+                    "x": g[x_col].tolist(),
+                    "y": g[y_col].tolist(),
+                    "type": "scatter",
+                    "mode": "lines+markers",
+                    "name": str(name)
+                })
+            elif chart_type == "bar_chart":
+                traces.append({
+                    "x": g[x_col].tolist(),
+                    "y": g[y_col].tolist(),
+                    "type": "bar",
+                    "name": str(name)
+                })
+    else:
+        # Single series chart
+        y_data = df[y_col].tolist()
+
+        if chart_type == "line_chart":
+            traces.append({"x": x_data, "y": y_data, "type": "scatter", "mode": "lines+markers"})
+        elif chart_type == "pie_chart":
+            traces.append({"labels": x_data, "values": y_data, "type": "pie"})
+        elif chart_type == "scatter_plot":
+            traces.append({"x": x_data, "y": y_data, "type": "scatter", "mode": "markers"})
+        else:
+            traces.append({"x": x_data, "y": y_data, "type": "bar"})
 
     # Detect monthly date strings (YYYY-MM)
     is_monthly = (
@@ -126,21 +177,12 @@ def build_chart_config(df: pd.DataFrame, chart_type: str) -> dict:
     y_label = y_col.replace('_', ' ').title()
     chart_title = f"{y_label} by {x_label}"
 
-    if chart_type == "line_chart":
-        trace = {"x": x_data, "y": y_data, "type": "scatter", "mode": "lines+markers"}
-    elif chart_type == "pie_chart":
-        trace = {"labels": x_data, "values": y_data, "type": "pie"}
-    elif chart_type == "scatter_plot":
-        trace = {"x": x_data, "y": y_data, "type": "scatter", "mode": "markers"}
-    else:
-        trace = {"x": x_data, "y": y_data, "type": "bar"}
-
     layout: dict = {"title": chart_title}
     if chart_type != "pie_chart":
         layout["xaxis"] = {"title": x_label}
         layout["yaxis"] = {"title": y_label}
 
-    return {"data": [trace], "layout": layout}
+    return {"data": traces, "layout": layout}
 
 
 # ---------------------------------------------------------------------------
